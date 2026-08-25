@@ -14,17 +14,16 @@ const graph = (path) =>
 export const metaEnabled = () => env.meta.enabled;
 export const isMockToken = (token) => !token || String(token).startsWith('mock.');
 
-const BASE_SCOPES = [
+export const SCOPES = [
   'public_profile',
   'pages_show_list',
+  'pages_manage_posts',
   'pages_read_engagement',
   'instagram_basic',
   'instagram_content_publish',
   'instagram_manage_insights',
+  'read_insights',
 ];
-
-// Request extra permissions only after enabling and approving them in Meta.
-export const SCOPES = [...BASE_SCOPES, ...env.meta.extraScopes];
 
 export function getOAuthUrl(redirectUri, state) {
   const params = new URLSearchParams({

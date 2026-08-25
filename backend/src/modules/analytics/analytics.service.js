@@ -34,8 +34,12 @@ export async function syncPublication(publication) {
   });
 }
 
-/** Recurring job: refresh insights for every successfully-published item. */
-export async function syncAllAnalytics(tenantId = null) {
+/**
+ * Refresh insights for every successfully-published item. Pass a `tenantId` for
+ * user-triggered syncs so one workspace can't kick off Graph calls for another;
+ * the recurring job omits it deliberately to cover every tenant.
+ */
+export async function syncAllAnalytics(tenantId) {
   const pubs = await prisma.publication.findMany({
     where: { status: 'SUCCESS', externalId: { not: null }, ...(tenantId ? { tenantId } : {}) },
     include: { socialAccount: true },

@@ -4,39 +4,11 @@ import { Menu, MenuItem, Avatar, Button } from '../ui';
 import { BrandSwitcher } from './BrandSwitcher';
 import { useUI } from '../../store/ui';
 import { useAuth } from '../../store/auth';
-import { useActiveBrand } from '../../hooks/useBrands';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { get, post } from '../../lib/api';
-import toast from 'react-hot-toast';
 
 export function Topbar() {
   const { theme, toggleTheme, setSidebar } = useUI();
   const { user, logout } = useAuth();
-  const { activeBrandId } = useActiveBrand();
-  const qc = useQueryClient();
   const navigate = useNavigate();
-
-  const { data: accounts } = useQuery({
-    queryKey: ['social', activeBrandId],
-    queryFn: () => get(`/social/accounts?brandId=${activeBrandId}`),
-    enabled: Boolean(activeBrandId),
-  });
-  const facebookConnected = accounts?.some((account) => account.platform === 'FACEBOOK');
-  const connectFacebook = useMutation({
-    mutationFn: async () => {
-      const result = await get(`/social/meta/connect?brandId=${activeBrandId}`);
-      if (result.devMode) return post('/social/meta/dev-connect', { brandId: activeBrandId });
-      window.location.assign(result.url);
-      return null;
-    },
-    onSuccess: (result) => {
-      if (result) {
-        qc.invalidateQueries({ queryKey: ['social', activeBrandId] });
-        toast.success('Connected to Facebook');
-      }
-    },
-    onError: (error) => toast.error(error.message),
-  });
 
   return (
     <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-border bg-bg/80 backdrop-blur-xl">
@@ -53,16 +25,6 @@ export function Topbar() {
         <div className="ml-auto flex items-center gap-1.5">
           <Button size="sm" className="hidden sm:inline-flex" onClick={() => navigate('/posts/new')}>
             <Plus className="h-4 w-4" /> New Post
-          </Button>
-          <Button
-            size="sm"
-            variant={facebookConnected ? 'success' : 'secondary'}
-            className="hidden sm:inline-flex"
-            onClick={() => facebookConnected ? navigate('/connections') : connectFacebook.mutate()}
-            loading={connectFacebook.isPending}
-            disabled={!activeBrandId}
-          >
-            <span className="font-bold">f</span> {facebookConnected ? 'Connected to Facebook' : 'Connect Facebook'}
           </Button>
 
           <button

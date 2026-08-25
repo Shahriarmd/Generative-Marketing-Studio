@@ -15,7 +15,6 @@ export const TRANSITIONS = {
   schedule: { from: ['APPROVED', 'DRAFT', 'SCHEDULED'], to: 'SCHEDULED', roles: ['OWNER'] },
   unschedule: { from: ['SCHEDULED'], to: 'APPROVED', roles: ['OWNER'] },
   publish: { from: ['APPROVED', 'SCHEDULED'], to: 'PUBLISHING', roles: ['OWNER'] },
-  publishFacebook: { from: ['APPROVED', 'SCHEDULED'], to: 'PUBLISHING', roles: ['OWNER'] },
   archive: {
     from: ['DRAFT', 'REJECTED', 'PUBLISHED', 'FAILED', 'APPROVED', 'SCHEDULED'],
     to: 'ARCHIVED',

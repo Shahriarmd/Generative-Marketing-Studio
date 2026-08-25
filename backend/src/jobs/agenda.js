@@ -30,7 +30,7 @@ async function handlePublish(postId) {
   if (job) await prisma.publishJob.update({ where: { id: job.id }, data: { attempts: attempt, status: 'RUNNING' } });
 
   try {
-    await runPublishJob(postId, job?.platforms?.length ? job.platforms : null);
+    await runPublishJob(postId);
     if (job) await prisma.publishJob.update({ where: { id: job.id }, data: { status: 'SUCCESS', lastError: null } });
     logger.success(`publish-post succeeded for ${postId} (attempt ${attempt})`);
   } catch (err) {
@@ -51,11 +51,7 @@ async function handlePublish(postId) {
           where: { id: job.id },
           data: { status: 'FAILED', lastError: err.message },
         });
-      const successfulPublications = await prisma.publication.count({ where: { postId, status: 'SUCCESS' } });
-      const post = await prisma.post.update({
-        where: { id: postId },
-        data: { status: successfulPublications ? 'PUBLISHED' : 'FAILED' },
-      }).catch(() => null);
+      const post = await prisma.post.update({ where: { id: postId }, data: { status: 'FAILED' } }).catch(() => null);
       if (post) {
         await prisma.notification.create({
           data: {
@@ -99,17 +95,30 @@ export async function startAgenda() {
   return agenda;
 }
 
-/** Schedule (or immediately queue) a post's publish job. */
-export async function schedulePublishJob(post, runAt, platforms = null) {
+/**
+ * Schedule a post's publish job. Omit `runAt` (or pass a time in the past) to
+ * publish immediately — `agenda.now` skips the processEvery tick, and when the
+ * scheduler failed to start we run the job inline so "Publish now" still works.
+ */
+export async function schedulePublishJob(post, runAt) {
   const when = runAt ? new Date(runAt) : new Date();
+  const immediate = when.getTime() <= Date.now();
   const pj = await prisma.publishJob.create({
-    data: { tenantId: post.tenantId, postId: post.id, runAt: when, status: 'QUEUED', platforms: platforms || [] },
+    data: { tenantId: post.tenantId, postId: post.id, runAt: when, status: 'QUEUED' },
   });
+
   if (!agenda) {
-    logger.warn('Agenda not started; publish job recorded but not scheduled.');
+    if (!immediate) {
+      logger.warn('Agenda not started; publish job recorded but not scheduled.');
+      return pj;
+    }
+    await handlePublish(post.id);
     return pj;
   }
-  const job = await agenda.schedule(when, 'publish-post', { postId: post.id });
+
+  const job = immediate
+    ? await agenda.now('publish-post', { postId: post.id })
+    : await agenda.schedule(when, 'publish-post', { postId: post.id });
   await prisma.publishJob.update({ where: { id: pj.id }, data: { agendaJobId: String(job.attrs._id) } });
   return pj;
 }
@@ -125,10 +134,21 @@ export async function cancelPublishJob(postId) {
 
 /** Manually retry a failed publish immediately (Feature 16 — UI button). */
 export async function retryPublishJob(postId) {
-  await prisma.publishJob.updateMany({
-    where: { postId, status: 'FAILED' },
-    data: { status: 'QUEUED', attempts: 0, lastError: null, nextRetryAt: null },
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) return;
+
+  const { count } = await prisma.publishJob.updateMany({
+    where: { postId, status: { in: ['FAILED', 'CANCELLED'] } },
+    data: { status: 'QUEUED', attempts: 0, nextRetryAt: null },
   });
+  // A post can reach FAILED without a job row (e.g. it was published before the
+  // queue existed); without one the retry would run untracked.
+  if (!count) {
+    await prisma.publishJob.create({
+      data: { tenantId: post.tenantId, postId, runAt: new Date(), status: 'QUEUED' },
+    });
+  }
+
   await prisma.post.update({ where: { id: postId }, data: { status: 'APPROVED' } }).catch(() => null);
   if (agenda) await agenda.now('publish-post', { postId });
   else await handlePublish(postId);

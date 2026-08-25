@@ -19,11 +19,11 @@ function permanent(message) {
  * at least one platform succeeds. Throws (optionally `.permanent`) on failure
  * so the Agenda worker can decide whether to retry.
  */
-export async function runPublishJob(postId, requestedPlatforms = null) {
+export async function runPublishJob(postId) {
   const post = await prisma.post.findUnique({ where: { id: postId }, include: { brand: true } });
   if (!post) throw permanent('Post not found');
 
-  const targets = (requestedPlatforms || post.platforms || []).filter((p) => PUBLISHABLE.includes(p));
+  const targets = (post.platforms || []).filter((p) => PUBLISHABLE.includes(p));
   if (!targets.length) throw permanent('No publishable platforms selected (Facebook/Instagram)');
 
   await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } });
@@ -38,18 +38,8 @@ export async function runPublishJob(postId, requestedPlatforms = null) {
   const results = [];
   let anySuccess = false;
   let lastError = null;
-  let hasRetryableFailure = false;
 
   for (const platform of targets) {
-    const existingSuccess = await prisma.publication.findFirst({
-      where: { postId, platform, status: 'SUCCESS' },
-    });
-    if (existingSuccess) {
-      results.push(existingSuccess);
-      anySuccess = true;
-      continue;
-    }
-
     const account = accounts.find((a) => a.platform === platform);
     if (!account) {
       lastError = permanent(`No connected ${platform} account for this brand`);
@@ -102,7 +92,6 @@ export async function runPublishJob(postId, requestedPlatforms = null) {
       anySuccess = true;
     } catch (err) {
       lastError = err;
-      if (!err.permanent) hasRetryableFailure = true;
       results.push(
         // eslint-disable-next-line no-await-in-loop
         await prisma.publication.create({
@@ -119,10 +108,9 @@ export async function runPublishJob(postId, requestedPlatforms = null) {
     }
   }
 
-  if (!anySuccess || hasRetryableFailure) {
+  if (!anySuccess) {
     const e = new Error(lastError?.message || 'Publishing failed');
-    if (!hasRetryableFailure && lastError?.permanent) e.permanent = true;
-    e.partialSuccess = anySuccess;
+    if (lastError?.permanent) e.permanent = true;
     throw e;
   }
 
