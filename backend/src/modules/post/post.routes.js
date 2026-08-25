@@ -275,6 +275,19 @@ router.patch(
  * a post either stuck at PUBLISHING or "scheduled" but never sent.
  */
 router.post(
+  '/:id/publish-facebook',
+  asyncHandler(async (req, res) => {
+    const post = await ensureOwned('post', req.tenantId, req.params.id);
+    const updated = await applyTransition({ post, action: 'publish', actor: req.user });
+
+    // Keep the post's saved platform selection unchanged, while this action
+    // explicitly sends only a Facebook Page publication.
+    await schedulePublishJob(updated, null, ['FACEBOOK']);
+    return ok(res, updated);
+  })
+);
+
+router.post(
   '/:id/:action',
   asyncHandler(async (req, res) => {
     const post = await ensureOwned('post', req.tenantId, req.params.id);
