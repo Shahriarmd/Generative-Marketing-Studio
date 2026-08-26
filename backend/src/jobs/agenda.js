@@ -20,7 +20,7 @@ const backoffMinutes = (attempt) => Math.min(BACKOFF_CAP_MIN, 2 ** attempt); // 
  * giving up (and flipping the post to FAILED) once maxAttempts is reached or
  * the error is marked permanent.
  */
-async function handlePublish(postId, platforms = null) {
+async function handlePublish(postId) {
   const job = await prisma.publishJob.findFirst({
     where: { postId },
     orderBy: { createdAt: 'desc' },
@@ -30,7 +30,7 @@ async function handlePublish(postId, platforms = null) {
   if (job) await prisma.publishJob.update({ where: { id: job.id }, data: { attempts: attempt, status: 'RUNNING' } });
 
   try {
-    await runPublishJob(postId, platforms);
+    await runPublishJob(postId);
     if (job) await prisma.publishJob.update({ where: { id: job.id }, data: { status: 'SUCCESS', lastError: null } });
     logger.success(`publish-post succeeded for ${postId} (attempt ${attempt})`);
   } catch (err) {
@@ -43,7 +43,7 @@ async function handlePublish(postId, platforms = null) {
           where: { id: job.id },
           data: { status: 'RETRYING', lastError: err.message, nextRetryAt },
         });
-      await agenda.schedule(nextRetryAt, 'publish-post', { postId, platforms });
+      await agenda.schedule(nextRetryAt, 'publish-post', { postId });
       logger.warn(`publish-post failed for ${postId} (attempt ${attempt}/${maxAttempts}): ${err.message}. Retrying in ${mins}m`);
     } else {
       if (job)
@@ -79,7 +79,7 @@ export async function startAgenda() {
   });
 
   agenda.define('publish-post', { priority: 'high' }, async (job) => {
-    await handlePublish(job.attrs.data.postId, job.attrs.data.platforms);
+    await handlePublish(job.attrs.data.postId);
   });
 
   agenda.define('sync-analytics', async () => {
@@ -100,7 +100,7 @@ export async function startAgenda() {
  * publish immediately — `agenda.now` skips the processEvery tick, and when the
  * scheduler failed to start we run the job inline so "Publish now" still works.
  */
-export async function schedulePublishJob(post, runAt, platforms = null) {
+export async function schedulePublishJob(post, runAt) {
   const when = runAt ? new Date(runAt) : new Date();
   const immediate = when.getTime() <= Date.now();
   const pj = await prisma.publishJob.create({
@@ -112,13 +112,13 @@ export async function schedulePublishJob(post, runAt, platforms = null) {
       logger.warn('Agenda not started; publish job recorded but not scheduled.');
       return pj;
     }
-    await handlePublish(post.id, platforms);
+    await handlePublish(post.id);
     return pj;
   }
 
   const job = immediate
-    ? await agenda.now('publish-post', { postId: post.id, platforms })
-    : await agenda.schedule(when, 'publish-post', { postId: post.id, platforms });
+    ? await agenda.now('publish-post', { postId: post.id })
+    : await agenda.schedule(when, 'publish-post', { postId: post.id });
   await prisma.publishJob.update({ where: { id: pj.id }, data: { agendaJobId: String(job.attrs._id) } });
   return pj;
 }

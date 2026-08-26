@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   FileText, Clock, CalendarCheck, Send, TrendingUp, Sparkles, ImagePlus,
-  Lightbulb, ArrowUpRight, CheckSquare, Plus, PlugZap,
+  Lightbulb, ArrowUpRight, CheckSquare, Plus,
 } from 'lucide-react';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatCard } from '../components/shared/StatCard';
@@ -46,14 +46,11 @@ export default function DashboardPage() {
       <PageHeader
         title={`${greeting}, ${user?.name?.split(' ')[0] || 'there'} 👋`}
         description={activeBrand ? `Here’s what’s happening with ${activeBrand.name}.` : 'Create a brand to get started.'}
-        actions={<>
-          <Link to="/connections">
-            <Button variant="outline"><PlugZap className="h-4 w-4" /> Connect Facebook</Button>
-          </Link>
+        actions={
           <Link to="/posts/new">
             <Button><Plus className="h-4 w-4" /> New Post</Button>
           </Link>
-        </>}
+        }
       />
 
       {/* Stats */}

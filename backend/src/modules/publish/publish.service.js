@@ -19,11 +19,11 @@ function permanent(message) {
  * at least one platform succeeds. Throws (optionally `.permanent`) on failure
  * so the Agenda worker can decide whether to retry.
  */
-export async function runPublishJob(postId, requestedPlatforms = null) {
+export async function runPublishJob(postId) {
   const post = await prisma.post.findUnique({ where: { id: postId }, include: { brand: true } });
   if (!post) throw permanent('Post not found');
 
-  const targets = (requestedPlatforms || post.platforms || []).filter((p) => PUBLISHABLE.includes(p));
+  const targets = (post.platforms || []).filter((p) => PUBLISHABLE.includes(p));
   if (!targets.length) throw permanent('No publishable platforms selected (Facebook/Instagram)');
 
   await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } });
