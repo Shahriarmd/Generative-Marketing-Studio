@@ -279,6 +279,11 @@ Then open a PR and request one review. Before you do, check:
 `schema.prisma` and `app.js` are the two files everyone touches — expect conflicts there and keep
 edits scoped to your own models.
 
+### Deployment Links
+
+| Render: https://mkt-studio-api.onrender.com/ |
+| Vercel: https://generative-marketing-studio.vercel.app/ |
+
 ### Module owners
 
 | Owner | Area |
