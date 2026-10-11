@@ -282,6 +282,7 @@ edits scoped to your own models.
 ### Deployment Links
 
 | Render: https://mkt-studio-api.onrender.com/ |
+
 | Vercel: https://generative-marketing-studio.vercel.app/ |
 
 ### Module owners
